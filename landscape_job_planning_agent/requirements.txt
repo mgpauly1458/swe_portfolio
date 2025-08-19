@@ -1,0 +1,5 @@
+langchain>=0.2.14
+langchain-openai>=0.1.22
+openai>=1.40.0
+pydantic>=2.7.0
+tiktoken>=0.7.0
