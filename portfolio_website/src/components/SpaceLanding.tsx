@@ -1,9 +1,12 @@
 import React, { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { Box, Typography } from '@mui/material';
+import { gsap } from 'gsap';
 
 export default function SpaceLanding() {
   const mountRef = useRef<HTMLDivElement | null>(null);
+  const appsRef = useRef<HTMLSpanElement | null>(null);
+  const pipesRef = useRef<HTMLSpanElement | null>(null);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -248,6 +251,77 @@ export default function SpaceLanding() {
     };
   }, []);
 
+  // GSAP-driven rotating words for the tagline (synchronized)
+  useEffect(() => {
+    const appsWords = ['Dashboards', 'Pipelines', 'Automation'];
+    const appsColors = ['#FF6B6B', '#4D96FF', '#A28BFF', '#FF9F43', '#34D399'];
+
+    const pipesWords = ['ML-Apps', 'CI/CD', 'CRM'];
+    const pipesColors = ['#FFD166', '#06D6A0', '#118AB2', '#8ECAE6', '#EF476F'];
+
+    const apps = appsRef.current;
+    const pipes = pipesRef.current;
+    if (!apps || !pipes) return;
+
+    // initial state
+    gsap.set([apps, pipes], { opacity: 1, y: 0 });
+    let iA = 0;
+    let iB = 0;
+
+    apps.textContent = appsWords[0];
+    apps.style.color = appsColors[0];
+    pipes.textContent = pipesWords[0];
+    pipes.style.color = pipesColors[0];
+
+    const handles: any[] = [];
+    const interval = 4; // seconds between synchronized rotations
+
+    const next = () => {
+      if (!apps || !pipes) return;
+      const nextA = (iA + 1) % appsWords.length;
+      const nextB = (iB + 1) % pipesWords.length;
+
+      // animate both out in parallel, then swap text+color and animate in
+      gsap.to(apps, {
+        duration: 0.6,
+        opacity: 0,
+        y: -8,
+        ease: 'power2.out',
+        onComplete: () => {
+          apps.textContent = appsWords[nextA];
+          apps.style.color = appsColors[nextA % appsColors.length];
+          gsap.fromTo(apps, { opacity: 0, y: 8 }, { duration: 0.6, opacity: 1, y: 0, ease: 'power2.out' });
+        },
+      });
+
+      gsap.to(pipes, {
+        duration: 0.6,
+        opacity: 0,
+        y: -8,
+        ease: 'power2.out',
+        onComplete: () => {
+          pipes.textContent = pipesWords[nextB];
+          pipes.style.color = pipesColors[nextB % pipesColors.length];
+          gsap.fromTo(pipes, { opacity: 0, y: 8 }, { duration: 0.6, opacity: 1, y: 0, ease: 'power2.out' });
+        },
+      });
+
+      iA = nextA;
+      iB = nextB;
+
+      handles.push(gsap.delayedCall(interval, next));
+    };
+
+    // start the synchronized loop
+    handles.push(gsap.delayedCall(interval, next));
+
+    return () => {
+      handles.forEach((h) => h && h.kill && h.kill());
+      gsap.killTweensOf(apps);
+      gsap.killTweensOf(pipes);
+    };
+  }, []);
+
   return (
     <Box
       id="space"
@@ -261,33 +335,100 @@ export default function SpaceLanding() {
       }}
     >
       <Typography
-        variant="h2"
+        variant="h3"
         gutterBottom
         sx={{
           position: 'absolute',
-          top: '50%',
+          top: '40%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          color: '#A8F6FF',
+          zIndex: 1,
+          textAlign: 'center',
+          fontWeight: 700,
+          letterSpacing: '0.5px',
+          fontSize: {
+            xs: 'clamp(2.2rem, 7vw, 3.2rem)', // mobile to small tablet
+            sm: 'clamp(2.8rem, 6vw, 4.2rem)', // tablet
+            md: 'clamp(3.2rem, 5vw, 5.2rem)', // desktop
+          },
+          lineHeight: 1.1,
+          textShadow:
+            '0 0 1px #00eaff, 0 0 2px #00eaff, 0 0 4px #00eaff, 0 0 0.5px #fff',
+        }}
+      >
+        Maxwell Pauly
+      </Typography>
+
+      <Typography
+        variant="subtitle1"
+        sx={{
+          position: 'absolute',
+          top: {
+            xs: '48%',
+            sm: '48.5%',
+            md: '49%',
+          },
           left: '50%',
           transform: 'translate(-50%, -50%)',
           color: '#fff',
           zIndex: 1,
           textAlign: 'center',
+          fontStyle: 'italic',
+          fontFamily: 'Georgia, "Times New Roman", serif',
+          opacity: 0.9,
+          fontSize: {
+            xs: 'clamp(1.1rem, 3.5vw, 1.5rem)',
+            sm: 'clamp(1.2rem, 2.8vw, 1.7rem)',
+            md: 'clamp(1.3rem, 2vw, 2rem)',
+          },
         }}
       >
-        Welcome
+        Software Consulting
       </Typography>
-        <Typography
-            variant="subtitle1"
-            sx={{
-            position: 'absolute',
-            top: '60%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            color: '#fff',
-            zIndex: 1,
-            textAlign: 'center',
-            }}
+
+      <Typography
+        variant="subtitle2"
+        sx={{
+          position: 'absolute',
+          top: {
+            xs: '60%',
+            sm: '59.5%',
+            md: '59%',
+          },
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          color: '#fff',
+          zIndex: 1,
+          textAlign: 'center',
+          maxWidth: { xs: '95%', sm: '90%', md: '80%' },
+          px: { xs: 1, sm: 2, md: 0 },
+          fontSize: {
+            xs: 'clamp(1.25rem, 4vw, 1.7rem)',
+            sm: 'clamp(1.35rem, 3vw, 2rem)',
+            md: 'clamp(1.5rem, 2.2vw, 2.3rem)',
+          },
+        }}
+      >
+        I help businesses build and deploy software.<br />
+        <span style={{ display: 'block', textAlign: 'center', marginTop: 4 }}>
+          From
+          <span
+            ref={appsRef}
+            style={{ display: 'inline-block', fontWeight: 700, margin: '0 8px', whiteSpace: 'nowrap' }}
           >
-          </Typography>
+            apps
+          </span>
+          to
+          <span
+            ref={pipesRef}
+            style={{ display: 'inline-block', fontWeight: 700, margin: '0 8px', whiteSpace: 'nowrap' }}
+          >
+            pipelines
+          </span>
+          .
+        </span>
+      </Typography>
     </Box>
   );
 }
