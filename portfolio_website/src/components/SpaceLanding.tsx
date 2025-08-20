@@ -82,6 +82,78 @@ export default function SpaceLanding() {
     const stars = new THREE.Points(starGeometry, starMaterial);
     scene.add(stars);
 
+    // Shooting stars: small white dot sprites that move mostly horizontally across the view
+    type ShootingStar = {
+      sprite: THREE.Sprite;
+      velocity: THREE.Vector3;
+      life: number;
+      maxLife: number;
+    };
+
+    const shootingStars: ShootingStar[] = [];
+    const shootingCount = 2; // a handful of small dots
+
+    // createShootingStar accepts a direction: 1 => left-to-right, -1 => right-to-left
+    const createShootingStar = (dir?: number) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d')!;
+
+      // draw a soft circular dot with radial gradient
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, cx);
+      grad.addColorStop(0, 'rgba(255,255,255,1)');
+      grad.addColorStop(0.3, 'rgba(255,255,255,0.9)');
+      grad.addColorStop(0.6, 'rgba(255,255,255,0.5)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.needsUpdate = true;
+
+      const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+      const sprite = new THREE.Sprite(material);
+
+      // determine horizontal direction (1 = left->right, -1 = right->left)
+      const direction = typeof dir === 'number' ? dir : (Math.random() < 0.5 ? 1 : -1);
+
+      // start X offscreen based on direction
+      const startX = direction === 1 ? -1200 - Math.random() * 400 : 1200 + Math.random() * 400;
+      const startY = (Math.random() - 0.5) * 1000; // spread vertically
+      const startZ = -500 + Math.random() * 1000;
+      sprite.position.set(startX, startY, startZ);
+
+      // small dot size in world units
+      const size = 6 + Math.random() * 6; // 6-12
+      sprite.scale.set(size, size, 1);
+
+      // mostly horizontal velocity, slight vertical jitter
+      const speed = 500 + Math.random() * 700; // units/sec
+      const vx = direction * speed;
+      const vy = (Math.random() - 0.5) * 60; // small vertical component
+      const vz = (Math.random() - 0.5) * 40;
+
+      scene.add(sprite);
+
+      // maxLife based on distance to cross screen at current speed (+some buffer)
+      const distance = 2800; // rough distance to travel across view
+      const maxLife = distance / Math.abs(vx);
+
+      return {
+        sprite,
+        velocity: new THREE.Vector3(vx, vy, vz),
+        life: Math.random() * maxLife * 0.6, // staggered start
+        maxLife,
+      } as ShootingStar;
+    };
+
+    // Create exactly two shooting stars: one from left->right and one from right->left
+    shootingStars.push(createShootingStar(1));
+    shootingStars.push(createShootingStar(-1));
+
     // Resize handler
     const handleResize = () => {
       camera.aspect = mount.clientWidth / mount.clientHeight;
@@ -95,6 +167,7 @@ export default function SpaceLanding() {
     const animate = () => {
       requestAnimationFrame(animate);
 
+      const delta = clock.getDelta();
       const time = clock.getElapsedTime();
 
       const sizeAttr = starGeometry.getAttribute('size');
@@ -108,24 +181,70 @@ export default function SpaceLanding() {
         const brightness = blinkChance < 0.002 ? 1 : twinkle * 0.7 + 0.3; // occasional flash
 
         // Update size
-        sizeAttr.array[i] = star.minSize + (star.maxSize - star.minSize) * brightness;
+        (sizeAttr.array as any)[i] = star.minSize + (star.maxSize - star.minSize) * brightness;
 
         // Update color (brightness)
-        colorAttr.array[i * 3 + 0] = brightness;
-        colorAttr.array[i * 3 + 1] = brightness;
-        colorAttr.array[i * 3 + 2] = brightness;
+        (colorAttr.array as any)[i * 3 + 0] = brightness;
+        (colorAttr.array as any)[i * 3 + 1] = brightness;
+        (colorAttr.array as any)[i * 3 + 2] = brightness;
       }
 
       sizeAttr.needsUpdate = true;
       colorAttr.needsUpdate = true;
+
+      // Update shooting stars (small dots moving mostly horizontally)
+      for (let i = 0; i < shootingStars.length; i++) {
+        const s = shootingStars[i];
+        s.life += delta;
+
+        // advance position
+        s.sprite.position.x += s.velocity.x * delta;
+        s.sprite.position.y += s.velocity.y * delta;
+        s.sprite.position.z += s.velocity.z * delta;
+
+        // subtle vertical bob to avoid perfectly straight lines
+        s.sprite.position.y += Math.sin((s.life + i) * 12) * 0.3;
+
+        // fade in at start, fade out near end
+        const t = Math.min(1, s.life / (s.maxLife * 0.15)); // fade-in portion
+        const tt = s.life / s.maxLife; // overall life progress
+        const mat = s.sprite.material as THREE.SpriteMaterial;
+        // opacity ramps up quickly then slowly down
+        mat.opacity = Math.max(0, (t < 1 ? t : 1) * (1 - Math.max(0, (tt - 0.75) / 0.25)));
+
+        // reset if life ended or out of bounds
+        if (s.life > s.maxLife || Math.abs(s.sprite.position.x) > 1600) {
+          // reposition to left or right offscreen depending on original direction of travel
+          const dir = Math.sign(s.velocity.x) || 1;
+          s.sprite.position.set(dir === 1 ? -1200 - Math.random() * 400 : 1200 + Math.random() * 400, (Math.random() - 0.5) * 1000, -500 + Math.random() * 1000);
+          const speed = 500 + Math.random() * 700;
+          s.velocity.set(dir * speed, (Math.random() - 0.5) * 60, (Math.random() - 0.5) * 40);
+          s.life = 0;
+          s.maxLife = 2800 / Math.abs(s.velocity.x);
+          mat.opacity = 0;
+        }
+      }
 
       renderer.render(scene, camera);
     };
     animate();
 
     return () => {
+      // cleanup renderer & listeners
       mount.removeChild(renderer.domElement);
       window.removeEventListener('resize', handleResize);
+
+      // dispose shooting star textures and materials
+      shootingStars.forEach((s) => {
+        try {
+          const mat = s.sprite.material as THREE.SpriteMaterial;
+          if (mat.map) mat.map.dispose();
+          mat.dispose();
+          scene.remove(s.sprite);
+        } catch (e) {
+          // ignore disposal errors
+        }
+      });
     };
   }, []);
 
@@ -154,8 +273,24 @@ export default function SpaceLanding() {
           textAlign: 'center',
         }}
       >
-        Welcome to the Space Landing
+        Welcome
       </Typography>
+        <Typography
+            variant="subtitle1"
+            sx={{
+            position: 'absolute',
+            top: '60%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            color: '#fff',
+            zIndex: 1,
+            textAlign: 'center',
+            }}
+          >
+          </Typography>
     </Box>
   );
 }
+
+
+// I help businesses build and deploy software that solves real problems, from dashboards to AI-powered apps.
