@@ -12,7 +12,7 @@ export default function ScrollController() {
   const touchStartY = useRef<number | null>(null);
 
   useEffect(() => {
-    const sectionIds = ['space', 'underwater', 'rainforest'];
+    const sectionIds = ['space', 'underwater', 'rainforest', 'snow'];
     const sections = sectionIds
       .map((id) => document.getElementById(id))
       .filter(Boolean) as HTMLElement[];

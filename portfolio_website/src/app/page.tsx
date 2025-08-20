@@ -2,9 +2,9 @@
 
 import React, { useEffect, useRef } from 'react';
 import SpaceLanding from '@/components/SpaceLanding';
-import UnderwaterSection
- from '@/components/UnderwaterSection';
+import UnderwaterSection from '@/components/UnderwaterSection';
 import RainforrestSection from '@/components/RainforrestSection';
+import SnowSection from '@/components/SnowSection';
 import ScrollController from '@/components/ScrollController';
 export default function Home() {
 
@@ -14,6 +14,7 @@ export default function Home() {
       <SpaceLanding />
       <UnderwaterSection />
       <RainforrestSection />
+      <SnowSection />
     </>
   );
 }
