@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Box, Typography } from '@mui/material';
 
 export default function SpaceLanding() {
-  const mountRef = useRef(null);
+  const mountRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -30,7 +30,14 @@ export default function SpaceLanding() {
     const sizes = [];
     const colors = [];
 
-    const starData = []; // per-star twinkle metadata
+    type StarMetadata = {
+      speed: number;
+      phase: number;
+      minSize: number;
+      maxSize: number;
+      brightness: number;
+    };
+    const starData: StarMetadata[] = []; // per-star twinkle metadata
 
     for (let i = 0; i < starCount; i++) {
       positions.push(

@@ -19,7 +19,9 @@ export default function ScrollController() {
     if (!sections.length) return;
 
     const SNAP_DURATION = 0.8; // seconds
-    const WHEEL_THRESHOLD = 40; // deltaY required to trigger a snap
+    // Allow any non-zero wheel movement to advance exactly one section.
+    // (This makes even small/nudge gestures advance one step; adjust if desired.)
+    const WHEEL_THRESHOLD = 0;
     const TOUCH_THRESHOLD = 40; // px swipe required to trigger a snap
 
     const getClosestIndex = () => {
@@ -46,7 +48,9 @@ export default function ScrollController() {
       const rect = el.getBoundingClientRect();
       const elTopDoc = docTop + rect.top;
       const target = Math.round(elTopDoc + rect.height / 2 - window.innerHeight / 2);
-      return Math.max(0, target);
+      // Clamp to document scrollable range to avoid showing blank whitespace
+      const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      return Math.max(0, Math.min(target, maxScroll));
     };
 
     const snapToIndex = (index: number, duration = SNAP_DURATION) => {
@@ -76,7 +80,10 @@ export default function ScrollController() {
         return;
       }
       const delta = e.deltaY;
-      if (Math.abs(delta) < WHEEL_THRESHOLD) return; // ignore small touchpad nudges
+      if (Math.abs(delta) <= WHEEL_THRESHOLD) {
+        // if threshold is zero this still avoids acting on exactly zero deltas
+        if (Math.abs(delta) === 0) return;
+      }
 
       e.preventDefault(); // intercept the scroll and handle snapping
       const idx = getClosestIndex();
@@ -92,6 +99,16 @@ export default function ScrollController() {
     // Touch handlers: detect swipe direction/length
     const onTouchStart = (e: TouchEvent) => {
       touchStartY.current = e.touches?.[0]?.clientY ?? null;
+    };
+    // Prevent native touch scrolling while a controlled swipe is in progress.
+    const onTouchMove = (e: TouchEvent) => {
+      if (touchStartY.current === null) return;
+      // Prevent the browser's partial scroll during the gesture so we don't get
+      // intermediate white gaps. We only preventDefault if we're not already
+      // animating; if we are, the animation will control the viewport.
+      if (!isAnimating.current) {
+        e.preventDefault();
+      }
     };
     const onTouchEnd = (e: TouchEvent) => {
       if (isAnimating.current) return;
@@ -126,8 +143,11 @@ export default function ScrollController() {
       }
     };
 
-    window.addEventListener('wheel', onWheel, { passive: false });
+    // Use capture for wheel so we can reliably intercept before other handlers
+    window.addEventListener('wheel', onWheel, { passive: false, capture: true });
     window.addEventListener('touchstart', onTouchStart, { passive: true });
+    // touchmove must be non-passive to allow preventDefault()
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
     window.addEventListener('touchend', onTouchEnd, { passive: true });
     window.addEventListener('keydown', onKeyDown);
 
@@ -138,13 +158,24 @@ export default function ScrollController() {
     };
     window.addEventListener('resize', onResize);
 
+    // Disable browser overscroll/bounce while controller is mounted to avoid
+    // visual gaps when the page is programmatically scrolled.
+    const prevHtmlOverscroll = document.documentElement.style.overscrollBehavior;
+    const prevBodyOverscroll = document.body.style.overscrollBehavior;
+    document.documentElement.style.overscrollBehavior = 'none';
+    document.body.style.overscrollBehavior = 'none';
+
     return () => {
-      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('wheel', onWheel, { capture: true } as EventListenerOptions);
       window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
       window.removeEventListener('touchend', onTouchEnd);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onResize);
       gsap.killTweensOf(window);
+      // restore overscroll styles
+      document.documentElement.style.overscrollBehavior = prevHtmlOverscroll;
+      document.body.style.overscrollBehavior = prevBodyOverscroll;
     };
   }, []);
 
