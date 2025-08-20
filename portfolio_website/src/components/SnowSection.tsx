@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useRef } from 'react';
 import { Box } from '@mui/material';
 import { gsap } from 'gsap';
@@ -10,6 +12,7 @@ export default function SnowSection() {
   const flakesRef = useRef<HTMLDivElement[]>([]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const container = containerRef.current;
     if (!container) return;
 

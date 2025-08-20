@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useRef } from 'react';
 import { Box } from '@mui/material';
 import { gsap } from 'gsap';
@@ -14,6 +16,9 @@ export default function RainforestSection() {
   const ANIMATION_DURATION = 4; // seconds for leaves to fall
 
   useEffect(() => {
+    // Only run in the browser
+    if (typeof window === 'undefined') return;
+
     const container = containerRef.current;
     if (!container) return; // guard against missing ref at mount
 
@@ -21,7 +26,6 @@ export default function RainforestSection() {
     console.log('Rainforest container:', container);
     const containerHeight = container.offsetHeight || container.getBoundingClientRect().height;
     const containerWidth = container.offsetWidth || container.getBoundingClientRect().width;
-    console.log('container size', { containerWidth, containerHeight });
     const columnWidth = containerWidth * 0.25; // 25% width per side
 
     const createLeaves = (side: 'left' | 'right') => {

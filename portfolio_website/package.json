@@ -15,6 +15,7 @@
     "@mui/material": "^7.3.1",
     "@react-three/drei": "^10.7.3",
     "@react-three/fiber": "^9.3.0",
+    "dat.gui": "^0.7.9",
     "gsap": "^3.13.0",
     "next": "15.4.7",
     "react": "19.1.0",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@types/dat.gui": "^0.7.13",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

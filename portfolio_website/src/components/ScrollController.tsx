@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
 import ScrollToPlugin from 'gsap/ScrollToPlugin';
@@ -12,6 +14,9 @@ export default function ScrollController() {
   const touchStartY = useRef<number | null>(null);
 
   useEffect(() => {
+    // guard: do nothing on server
+    if (typeof window === 'undefined') return;
+
     const sectionIds = ['space', 'underwater', 'rainforest', 'snow'];
     const sections = sectionIds
       .map((id) => document.getElementById(id))

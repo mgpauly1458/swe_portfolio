@@ -1,14 +1,45 @@
+"use client";
+
 import React, { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { Box, Typography } from '@mui/material';
 import { gsap } from 'gsap';
+import { GLTFLoader } from 'three-stdlib';
+import { EffectComposer } from 'three-stdlib';
+import { RenderPass } from 'three-stdlib';
+import { UnrealBloomPass } from 'three-stdlib';
 
 export default function SpaceLanding() {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const appsRef = useRef<HTMLSpanElement | null>(null);
   const pipesRef = useRef<HTMLSpanElement | null>(null);
+  const nameRef = useRef<HTMLSpanElement | null>(null);
+  // GSAP neon glow animation for "Maxwell Pauly"
+  useEffect(() => {
+    if (!nameRef.current) return;
+    const el = nameRef.current;
+    const glow1 = '0 0 2px #00eaff, 0 0 2px #00eaff, 0 0 4px #00eaff, 0 0 1px #fff';
+    const glow2 = '0 0 3px #00eaff, 0 0 3px #00eaff, 0 0 6px #00eaff, 0 0 1.5px #fff';
+    gsap.set(el, { textShadow: glow1 });
+    const tl = gsap.timeline({ repeat: -1, yoyo: true });
+    tl.to(el, {
+      duration: 1.2,
+      textShadow: glow2,
+      ease: 'power1.inOut',
+    }).to(el, {
+      duration: 1.2,
+      textShadow: glow1,
+      ease: 'power1.inOut',
+    });
+    return () => {
+      tl.kill();
+      gsap.set(el, { textShadow: glow1 });
+    };
+  }, []);
 
   useEffect(() => {
+    // guard: ensure this effect only runs in a browser environment
+    if (typeof window === 'undefined') return;
     const mount = mountRef.current;
     if (!mount) return;
     // Scene and Camera
@@ -26,6 +57,163 @@ export default function SpaceLanding() {
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     mount.appendChild(renderer.domElement);
+
+    // Postprocessing (bloom)
+    let composer: EffectComposer | null = null;
+    let bloomPass: UnrealBloomPass | null = null;
+    const USE_BLOOM = true;
+    const bloomBaseStrength = 0.6; // lower baseline to avoid massive puffs
+    if (USE_BLOOM) {
+      composer = new EffectComposer(renderer);
+      composer.addPass(new RenderPass(scene, camera));
+      bloomPass = new UnrealBloomPass(new THREE.Vector2(mount.clientWidth, mount.clientHeight), 1.2, 0.4, 0.9);
+      bloomPass.threshold = 0.45; // higher threshold so fewer surfaces bloom
+      bloomPass.strength = bloomBaseStrength; // baseline strength
+      bloomPass.radius = 0.5;
+      composer.addPass(bloomPass);
+    }
+
+    // Satellite 3D model
+    let satellite: THREE.Group | null = null;
+    let redLEDMaterial: THREE.MeshStandardMaterial | undefined;
+    let greenLEDMaterial: THREE.MeshStandardMaterial | undefined;
+    let redLEDMesh: THREE.Mesh | undefined;
+    let greenLEDMesh: THREE.Mesh | undefined;
+    let redGlowSprite: THREE.Sprite | null = null;
+    let greenGlowSprite: THREE.Sprite | null = null;
+    let redBaseRoughness = 0.5;
+    let greenBaseRoughness = 0.5;
+    let redBaseMetalness = 0;
+    let greenBaseMetalness = 0;
+
+    const loader = new GLTFLoader();
+    loader.load(
+      '/satellite.glb',
+      (gltf) => {
+        satellite = gltf.scene;
+        // Move the model to the top left of the screen and keep it in place
+        // responsive placement/scale based on mount width
+        const clientW = (mount && mount.clientWidth) ? mount.clientWidth : window.innerWidth;
+        let satScale = 400;
+        let satX = -594;
+        // small (mobile)
+        if (clientW <= 600) {
+          satScale = 300;
+          satX = -175;
+        } else if (clientW <= 900) {
+          // medium
+          satScale = 350;
+          satX = -200;
+        }
+        satellite.position.set(satX, 288, -65);
+        satellite.rotation.set(5.64, 3, 6);
+        satellite.scale.set(satScale, satScale, satScale); // responsive scale
+
+        console.log('satellite', satellite);
+        for (const child of satellite.children) {
+          console.log('child', child);
+        }
+        const redLed = satellite.children[0].children.find((child) => child.name === 'LED-Left') as THREE.Mesh;
+        const greenLed = satellite.children[0].children.find((child) => child.name === 'LED-Right') as THREE.Mesh;
+        redLEDMesh = redLed;
+        greenLEDMesh = greenLed;
+        redLEDMaterial = redLed?.material as THREE.MeshStandardMaterial;
+        greenLEDMaterial = greenLed?.material as THREE.MeshStandardMaterial;
+
+        // Ensure LED meshes use unique/cloned materials so other parts of the model don't inherit bright emissive changes
+        try {
+          if (redLEDMesh && redLEDMaterial) {
+            redLEDMesh.material = redLEDMaterial.clone();
+            redLEDMaterial = redLEDMesh.material as THREE.MeshStandardMaterial;
+          }
+          if (greenLEDMesh && greenLEDMaterial) {
+            greenLEDMesh.material = greenLEDMaterial.clone();
+            greenLEDMaterial = greenLEDMesh.material as THREE.MeshStandardMaterial;
+          }
+        } catch (e) {
+          // cloning may fail for some material setups; ignore and proceed
+        }
+
+        // store base material properties for brief specular flash
+        if (redLEDMaterial) {
+          redBaseRoughness = typeof redLEDMaterial.roughness === 'number' ? redLEDMaterial.roughness : 0.5;
+          redBaseMetalness = typeof redLEDMaterial.metalness === 'number' ? redLEDMaterial.metalness : 0;
+        }
+        if (greenLEDMaterial) {
+          greenBaseRoughness = typeof greenLEDMaterial.roughness === 'number' ? greenLEDMaterial.roughness : 0.5;
+          greenBaseMetalness = typeof greenLEDMaterial.metalness === 'number' ? greenLEDMaterial.metalness : 0;
+        }
+
+        // initialize emissive colors & start with zero intensity
+        if (redLEDMaterial) {
+          redLEDMaterial.emissive = new THREE.Color(0xff2b2b);
+          (redLEDMaterial as any).emissiveIntensity = 0;
+          redLEDMaterial.needsUpdate = true;
+        }
+        if (greenLEDMaterial) {
+          greenLEDMaterial.emissive = new THREE.Color(0x2bff7a);
+          (greenLEDMaterial as any).emissiveIntensity = 0;
+          greenLEDMaterial.needsUpdate = true;
+        }
+
+        // helper: create additive glow sprite for an LED
+        function makeGlow(colorHex = 0xffffff, size = 128) {
+          const canvas = document.createElement('canvas');
+          canvas.width = canvas.height = size;
+          const ctx = canvas.getContext('2d')!;
+          const cx = size / 2;
+          const grad = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx);
+          grad.addColorStop(0, 'rgba(255,255,255,1)');
+          const r = (colorHex >> 16) & 255;
+          const g = (colorHex >> 8) & 255;
+          const b = colorHex & 255;
+          grad.addColorStop(0.2, `rgba(${r},${g},${b},0.95)`);
+          grad.addColorStop(0.6, `rgba(${r},${g},${b},0.25)`);
+          grad.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, size, size);
+          const tex = new THREE.CanvasTexture(canvas);
+          tex.needsUpdate = true;
+          const mat = new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, transparent: true });
+          const sprite = new THREE.Sprite(mat);
+          sprite.scale.set(0, 0, 1);
+          // ensure sprite renders on top of the model
+          sprite.renderOrder = 9999;
+          return sprite;
+        }
+
+        // create glow sprites and add to scene
+        redGlowSprite = makeGlow(0xff2b2b, 256);
+        greenGlowSprite = makeGlow(0x2bff7a, 256);
+        if (redGlowSprite) scene.add(redGlowSprite);
+        if (greenGlowSprite) scene.add(greenGlowSprite);
+
+        scene.add(satellite);
+        // once satellite is added we can compute the initial offset between light and satellite
+        try {
+          dirLightOffsetX = dirLight.position.x - satellite.position.x;
+        } catch (e) {
+          // ignore if dirLight/satellite not available yet
+        }
+
+      },
+      undefined,
+      (error) => {
+        // eslint-disable-next-line no-console
+        console.error('Error loading satellite.glb:', error);
+      }
+    );
+
+    // Light setup
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2.2);
+    dirLight.position.set(134, -1000, 906); // shine from above and in front
+    dirLight.target.position.set(0, 0, 0); // point at the center
+    dirLight.intensity = 6.5;
+    scene.add(dirLight);
+    scene.add(dirLight.target);
+
+    // offset used to keep the light following satellite x while preserving original offset
+    let dirLightOffsetX = 0;
 
     // Starfield
     const starCount = 1000;
@@ -162,11 +350,47 @@ export default function SpaceLanding() {
       camera.aspect = mount.clientWidth / mount.clientHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(mount.clientWidth, mount.clientHeight);
+      // adjust satellite responsively when available
+      if (satellite) {
+        const clientW = mount.clientWidth;
+        let satScale = 400;
+        let satX = -594;
+        if (clientW <= 600) {
+          satScale = 300;
+          satX = -175;
+        } else if (clientW <= 900) {
+          satScale = 350;
+          satX = -200;
+        }
+        satellite.scale.set(satScale, satScale, satScale);
+        satellite.position.x = satX;
+        // update light offset to preserve relative light position
+        try {
+          if (typeof dirLight !== 'undefined') {
+            dirLightOffsetX = dirLight.position.x - satellite.position.x;
+          }
+        } catch (e) {
+          // ignore if dirLight not available
+        }
+      }
     };
     window.addEventListener('resize', handleResize);
 
+
     // Animate
     const clock = new THREE.Clock();
+
+    // LED blink scheduling and state
+    const BLINK_INTERVAL = 3.0; // seconds between blinks
+    const BLINK_DURATION = 0.18; // total blink duration (rise+fall)
+    const BLINK_RISE = 0.05; // seconds to rise to peak
+    const BLINK_PEAK_INTENSITY = 15.0; // very bright peak
+
+    let lastScheduledBlink = -BLINK_INTERVAL; // so first scheduled at t>=0
+    let nextBlinkIsGreen = false; // start with red if you want red first
+    let activeBlinkStart = -1;
+    let activeBlinkMaterial: THREE.MeshStandardMaterial | null = null;
+
     const animate = () => {
       requestAnimationFrame(animate);
 
@@ -228,11 +452,123 @@ export default function SpaceLanding() {
         }
       }
 
-      renderer.render(scene, camera);
+      // Animate LED blinking
+      if (redLEDMaterial && greenLEDMaterial) {
+        // scheduling: trigger a blink every BLINK_INTERVAL seconds, alternating LEDs
+        if (time - lastScheduledBlink >= BLINK_INTERVAL) {
+          lastScheduledBlink = time;
+          // flip which LED will blink next
+          nextBlinkIsGreen = !nextBlinkIsGreen;
+          activeBlinkStart = time;
+          activeBlinkMaterial = nextBlinkIsGreen ? greenLEDMaterial : redLEDMaterial;
+        }
+
+        // ensure non-active LED is off
+        if (activeBlinkMaterial !== redLEDMaterial) {
+          (redLEDMaterial as any).emissiveIntensity = 0;
+          // reset material physical properties
+          redLEDMaterial.roughness = redBaseRoughness;
+          redLEDMaterial.metalness = redBaseMetalness;
+        }
+        if (activeBlinkMaterial !== greenLEDMaterial) {
+          (greenLEDMaterial as any).emissiveIntensity = 0;
+          greenLEDMaterial.roughness = greenBaseRoughness;
+          greenLEDMaterial.metalness = greenBaseMetalness;
+        }
+
+        // animate current blink (quick bright pulse)
+        if (activeBlinkMaterial && activeBlinkStart >= 0) {
+          const tBlink = time - activeBlinkStart;
+          if (tBlink <= BLINK_DURATION) {
+            let intensity = 0;
+            if (tBlink < BLINK_RISE) {
+              intensity = BLINK_PEAK_INTENSITY * (tBlink / BLINK_RISE);
+            } else {
+              intensity = BLINK_PEAK_INTENSITY * (1 - (tBlink - BLINK_RISE) / (BLINK_DURATION - BLINK_RISE));
+            }
+            (activeBlinkMaterial as any).emissiveIntensity = intensity;
+
+            // normalized 0..1 for secondary effects
+            const norm = Math.min(1, Math.max(0, intensity / BLINK_PEAK_INTENSITY));
+
+            // specular pop: lower roughness and raise metalness briefly
+            const targetRoughness = Math.max(0, (activeBlinkMaterial === redLEDMaterial ? redBaseRoughness : greenBaseRoughness) - 0.7 * norm);
+            const targetMetalness = Math.min(1, (activeBlinkMaterial === redLEDMaterial ? redBaseMetalness : greenBaseMetalness) + 0.9 * norm);
+            activeBlinkMaterial.roughness = targetRoughness;
+            activeBlinkMaterial.metalness = targetMetalness;
+
+            // glow sprite effects: position at LED and scale/opacity with intensity
+            const glowScaleBase = 40; // tune this if too big/small
+            if (activeBlinkMaterial === redLEDMaterial && redGlowSprite && redLEDMesh) {
+              redLEDMesh.getWorldPosition(redGlowSprite.position);
+              // scale the sprite relative to world scale so a huge model doesn't make the sprite massive
+              const worldScale = redLEDMesh.getWorldScale(new THREE.Vector3()).x || 1;
+              const spriteSize = glowScaleBase / Math.max(1, worldScale);
+              (redGlowSprite.material as THREE.SpriteMaterial).opacity = norm;
+              redGlowSprite.scale.set(spriteSize * (1 + norm * 3), spriteSize * (1 + norm * 3), 1);
+            }
+            if (activeBlinkMaterial === greenLEDMaterial && greenGlowSprite && greenLEDMesh) {
+              greenLEDMesh.getWorldPosition(greenGlowSprite.position);
+              const worldScale = greenLEDMesh.getWorldScale(new THREE.Vector3()).x || 1;
+              const spriteSize = glowScaleBase / Math.max(1, worldScale);
+              (greenGlowSprite.material as THREE.SpriteMaterial).opacity = norm;
+              greenGlowSprite.scale.set(spriteSize * (1 + norm * 3), spriteSize * (1 + norm * 3), 1);
+            }
+
+            // light bloom strength pulse (subtle)
+            if (bloomPass) {
+              bloomPass.strength = bloomBaseStrength + norm * 1.2; // smaller pulse to avoid huge bleeds
+            }
+          } else {
+            // blink finished
+            (activeBlinkMaterial as any).emissiveIntensity = 0;
+            if (activeBlinkMaterial === redLEDMaterial) {
+              redLEDMaterial.roughness = redBaseRoughness;
+              redLEDMaterial.metalness = redBaseMetalness;
+              if (redGlowSprite) {
+                (redGlowSprite.material as THREE.SpriteMaterial).opacity = 0;
+                redGlowSprite.scale.set(0, 0, 1);
+              }
+            }
+            if (activeBlinkMaterial === greenLEDMaterial) {
+              greenLEDMaterial.roughness = greenBaseRoughness;
+              greenLEDMaterial.metalness = greenBaseMetalness;
+              if (greenGlowSprite) {
+                (greenGlowSprite.material as THREE.SpriteMaterial).opacity = 0;
+                greenGlowSprite.scale.set(0, 0, 1);
+              }
+            }
+
+            // reset bloom
+            if (bloomPass) bloomPass.strength = bloomBaseStrength;
+
+            activeBlinkMaterial = null;
+            activeBlinkStart = -1;
+          }
+        }
+      }
+
+      // Hold satellite in the top left for debugging
+      if (satellite) {
+        satellite.position.x += delta * 10;
+        // make the directional light follow satellite x (preserves initial offset)
+        dirLight.position.x = satellite.position.x + dirLightOffsetX;
+        // Optionally, rotate for realism
+        satellite.rotation.y += delta * 0.05;
+        satellite.rotation.x += delta * 0.03;
+      }
+
+      // render with composer if bloom enabled
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
     };
     animate();
 
     return () => {
+
       // cleanup renderer & listeners
       mount.removeChild(renderer.domElement);
       window.removeEventListener('resize', handleResize);
@@ -248,8 +584,44 @@ export default function SpaceLanding() {
           // ignore disposal errors
         }
       });
+
+      // dispose glow sprites
+      try {
+        if (redGlowSprite) {
+          const m = redGlowSprite.material as THREE.SpriteMaterial;
+          if (m.map) m.map.dispose();
+          m.dispose();
+          scene.remove(redGlowSprite);
+        }
+        if (greenGlowSprite) {
+          const m = greenGlowSprite.material as THREE.SpriteMaterial;
+          if (m.map) m.map.dispose();
+          m.dispose();
+          scene.remove(greenGlowSprite);
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      // composer cleanup (if any)
+      try {
+        if (composer) {
+          // no standardized dispose for composer, but remove refs
+          composer = null;
+          bloomPass = null;
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      // remove satellite
+      if (satellite) {
+        scene.remove(satellite);
+      }
     };
   }, []);
+
+
 
   // GSAP-driven rotating words for the tagline (synchronized)
   useEffect(() => {
@@ -289,7 +661,7 @@ export default function SpaceLanding() {
         ease: 'power2.out',
         onComplete: () => {
           apps.textContent = appsWords[nextA];
-          apps.style.color = appsColors[nextA % appsColors.length];
+          apps.style.color = appsColors[nextA];
           gsap.fromTo(apps, { opacity: 0, y: 8 }, { duration: 0.6, opacity: 1, y: 0, ease: 'power2.out' });
         },
       });
@@ -301,7 +673,7 @@ export default function SpaceLanding() {
         ease: 'power2.out',
         onComplete: () => {
           pipes.textContent = pipesWords[nextB];
-          pipes.style.color = pipesColors[nextB % pipesColors.length];
+          pipes.style.color = pipesColors[nextB];
           gsap.fromTo(pipes, { opacity: 0, y: 8 }, { duration: 0.6, opacity: 1, y: 0, ease: 'power2.out' });
         },
       });
@@ -353,11 +725,11 @@ export default function SpaceLanding() {
             md: 'clamp(3.2rem, 5vw, 5.2rem)', // desktop
           },
           lineHeight: 1.1,
-          textShadow:
-            '0 0 1px #00eaff, 0 0 2px #00eaff, 0 0 4px #00eaff, 0 0 0.5px #fff',
+          textShadow: '0 0 2px #00eaff, 0 0 2px #00eaff, 0 0 4px #00eaff, 0 0 1px #fff',
+          transition: 'text-shadow 0.5s',
         }}
       >
-        Maxwell Pauly
+        <span ref={nameRef}>Maxwell Pauly</span>
       </Typography>
 
       <Typography

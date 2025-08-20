@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useRef } from 'react';
 import { Box } from '@mui/material';
 import { gsap } from 'gsap';
@@ -13,6 +15,8 @@ export default function UnderwaterSection() {
   const NUM_BUBBLES = 30; // per side
 
   useEffect(() => {
+    // ensure only runs in browser
+    if (typeof window === 'undefined') return;
     const container = containerRef.current;
     if (!container) return;
 
