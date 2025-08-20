@@ -7,7 +7,7 @@ export default function SpaceLanding() {
 
   useEffect(() => {
     const mount = mountRef.current;
-
+    if (!mount) return;
     // Scene and Camera
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(
@@ -124,6 +124,7 @@ export default function SpaceLanding() {
 
   return (
     <Box
+      id="space"
       ref={mountRef}
       sx={{
         position: 'relative',

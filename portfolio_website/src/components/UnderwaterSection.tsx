@@ -136,6 +136,7 @@ export default function UnderwaterSection() {
 
   return (
     <Box
+      id="underwater"
       ref={containerRef}
       sx={{
         position: 'relative',
