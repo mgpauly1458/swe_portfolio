@@ -228,7 +228,7 @@ export default function SpaceCanvas() {
     const textureLoader = new TextureLoader();
     let backgroundTexture: THREE.Texture | null = null;
 
-    textureLoader.load('/space_background.jpg', (texture) => {
+    textureLoader.load('/spaceBackground.png', (texture) => {
       scene.background = texture;
       backgroundTexture = texture;
 
@@ -251,11 +251,11 @@ export default function SpaceCanvas() {
         if (windowAspect > textureAspect) {
           // Window is wider than texture
           backgroundTexture.repeat.set(1, textureAspect / windowAspect);
-          backgroundTexture.offset.set(offsetX, (1 - textureAspect / windowAspect) / 2 + offsetY);
+          backgroundTexture.offset.set(offsetX + 0.2, (1 - textureAspect / windowAspect) / 2 + offsetY + -0.2);
         } else {
           // Window is taller than texture
           backgroundTexture.repeat.set(windowAspect / textureAspect, 1);
-          backgroundTexture.offset.set((1 - windowAspect / textureAspect) / 2 + offsetX+0.1, offsetY);
+          backgroundTexture.offset.set((1 - windowAspect / textureAspect) / 2 + offsetX+0.15, offsetY - 0.075);
         }
       }
     };
