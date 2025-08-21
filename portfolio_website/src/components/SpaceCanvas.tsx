@@ -374,20 +374,37 @@ export default function SpaceCanvas() {
 
             const glowScaleBase = 60; // Increased base scale for more extravagant glow
             if (activeBlinkMaterial === redLEDMaterial && redGlowSprite && redLEDMesh) {
-              redLEDMesh.getWorldPosition(redGlowSprite.position);
-              const worldScale = redLEDMesh.getWorldScale(new THREE.Vector3()).x || 1;
-              const spriteSize = glowScaleBase / Math.max(1, worldScale);
-              (redGlowSprite.material as THREE.SpriteMaterial).opacity = norm * 1.5; // Increased opacity for stronger glow
-              redGlowSprite.scale.set(spriteSize * (1 + norm * 5), spriteSize * (1 + norm * 5), 1); // Larger scaling effect
-              (redGlowSprite.material as THREE.SpriteMaterial).color = new THREE.Color(`hsl(${Math.random() * 360}, 100%, 70%)`); // Add dynamic color pulsation
+              // ensure world matrices are up-to-date
+              redLEDMesh.updateWorldMatrix(true, false);
+              // compute a bounding box for the LED mesh in world space and place the sprite at its center
+              const redBox = new THREE.Box3().setFromObject(redLEDMesh);
+              const redCenter = redBox.getCenter(new THREE.Vector3());
+              redGlowSprite.position.copy(redCenter);
+              // determine LED physical size from the bounding box and derive a stable sprite scale
+              const redSize = redBox.getSize(new THREE.Vector3());
+              const redAvg = (redSize.x + redSize.y + redSize.z) / 3 || 1;
+              // smaller multiplier so the sprite isn't enormous; clamp to a reasonable range
+              let spriteScale = (glowScaleBase / 10) * redAvg * (1 + norm * 1.5);
+              spriteScale = Math.min(Math.max(spriteScale, 2), 220);
+              const mat = redGlowSprite.material as THREE.SpriteMaterial;
+              mat.opacity = Math.min(1, norm * 1.2);
+              mat.color = new THREE.Color(0xff2b2b);
+              redGlowSprite.scale.set(spriteScale, spriteScale, 1);
             }
             if (activeBlinkMaterial === greenLEDMaterial && greenGlowSprite && greenLEDMesh) {
-              greenLEDMesh.getWorldPosition(greenGlowSprite.position);
-              const worldScale = greenLEDMesh.getWorldScale(new THREE.Vector3()).x || 1;
-              const spriteSize = glowScaleBase / Math.max(1, worldScale);
-              (greenGlowSprite.material as THREE.SpriteMaterial).opacity = norm * 1.5; // Increased opacity for stronger glow
-              greenGlowSprite.scale.set(spriteSize * (1 + norm * 5), spriteSize * (1 + norm * 5), 1); // Larger scaling effect
-              (greenGlowSprite.material as THREE.SpriteMaterial).color = new THREE.Color(`hsl(${Math.random() * 360}, 100%, 70%)`); // Add dynamic color pulsation
+              // ensure world matrices are up-to-date
+              greenLEDMesh.updateWorldMatrix(true, false);
+              const greenBox = new THREE.Box3().setFromObject(greenLEDMesh);
+              const greenCenter = greenBox.getCenter(new THREE.Vector3());
+              greenGlowSprite.position.copy(greenCenter);
+              const greenSize = greenBox.getSize(new THREE.Vector3());
+              const greenAvg = (greenSize.x + greenSize.y + greenSize.z) / 3 || 1;
+              let spriteScaleG = (glowScaleBase / 10) * greenAvg * (1 + norm * 1.5);
+              spriteScaleG = Math.min(Math.max(spriteScaleG, 2), 220);
+              const gmat = greenGlowSprite.material as THREE.SpriteMaterial;
+              gmat.opacity = Math.min(1, norm * 1.2);
+              gmat.color = new THREE.Color(0x2bff7a);
+              greenGlowSprite.scale.set(spriteScaleG, spriteScaleG, 1);
             }
           } else {
             (activeBlinkMaterial as any).emissiveIntensity = 0;
