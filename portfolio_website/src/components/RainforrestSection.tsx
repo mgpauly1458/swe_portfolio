@@ -137,11 +137,17 @@ export default function RainforestSection() {
         position: 'relative',
         width: '100%',
         height: '100vh',
-        background: 'linear-gradient(to bottom, #013220, #116530)', // rainforest greens
         overflow: 'hidden',
+        backgroundImage: 'url(/rainforrestBackground.png)', // Set the background image
+        backgroundSize: 'var(--background-zoom, cover)', // Allow zoom customization
+        backgroundPosition: 'var(--background-offset-x, center) var(--background-offset-y, center)', // Allow offset customization
+        backgroundRepeat: 'no-repeat',
       }}
-    >
+      >
       {/* Rainforest content goes here */}
     </Box>
   );
 }
+
+// for reference
+//background: 'linear-gradient(to bottom, #013220, #116530)', // rainforest greens

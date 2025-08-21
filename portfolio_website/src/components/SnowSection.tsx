@@ -120,6 +120,27 @@ export default function SnowSection() {
     };
   }, []);
 
+  // Apply a 100px-left offset only on small screens (<=700px) by setting a CSS variable
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateOffset = () => {
+      if (window.innerWidth <= 700) {
+        // shift centered background 100px to the left
+        container.style.setProperty('--background-offset-x', 'calc(50% - 100px)');
+      } else {
+        // remove override so the fallback (50%) applies
+        container.style.removeProperty('--background-offset-x');
+      }
+    };
+
+    updateOffset();
+    window.addEventListener('resize', updateOffset);
+    return () => window.removeEventListener('resize', updateOffset);
+  }, []);
+
   return (
     <Box
       id="snow"
@@ -128,11 +149,18 @@ export default function SnowSection() {
         position: 'relative',
         width: '100%',
         height: '100vh',
-        background: 'linear-gradient(to bottom, #1b3b6f, #ffffffff)',
+        backgroundImage: 'url(/snowBackground.png)', // Set the background image
+        backgroundSize: 'var(--background-zoom, cover)', // Allow zoom customization
+        // Default x is centered (50%) but can be overridden by --background-offset-x (set only for small screens)
+        backgroundPosition: 'var(--background-offset-x, 50%) var(--background-offset-y, center)', // Allow offset customization
+        backgroundRepeat: 'no-repeat',
         overflow: 'hidden',
       }}
-    >
+      >
       {/* Snow section content */}
     </Box>
   );
 }
+
+// for reference
+//background: 'linear-gradient(to bottom, #1b3b6f, #ffffffff)',

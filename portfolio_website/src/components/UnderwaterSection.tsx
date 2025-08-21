@@ -138,6 +138,27 @@ export default function UnderwaterSection() {
     };
   }, []);
 
+  // Apply a 100px-left offset only on small screens (<=700px) by setting a CSS variable on the container
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateOffset = () => {
+      if (window.innerWidth <= 700) {
+        // shift centered background 100px to the left
+        container.style.setProperty('--background-offset-x', 'calc(50% - 50px)');
+      } else {
+        // remove override so the fallback (50%) applies
+        container.style.removeProperty('--background-offset-x');
+      }
+    };
+
+    updateOffset();
+    window.addEventListener('resize', updateOffset);
+    return () => window.removeEventListener('resize', updateOffset);
+  }, []);
+
   return (
     <Box
       id="underwater"
@@ -146,7 +167,11 @@ export default function UnderwaterSection() {
         position: 'relative',
         width: '100%',
         height: '100vh',
-        background: 'linear-gradient(to bottom, #001f3f, #0074d9)',
+        backgroundImage: 'url(/underwaterBackground.png)', // Set the background image
+        backgroundSize: 'var(--background-zoom, cover)', // Allow zoom customization
+        // Default x is centered (50%) but can be overridden by --background-offset-x (set only for small screens)
+        backgroundPosition: 'var(--background-offset-x, 50%) var(--background-offset-y, center)', // Allow offset customization
+        backgroundRepeat: 'no-repeat',
         overflow: 'hidden',
       }}
     >
@@ -154,3 +179,7 @@ export default function UnderwaterSection() {
     </Box>
   );
 }
+
+
+// for reference
+// background: 'linear-gradient(to bottom, #001f3f, #0074d9)',
