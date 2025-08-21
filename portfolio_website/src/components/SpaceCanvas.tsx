@@ -31,8 +31,19 @@ export default function SpaceCanvas() {
     let satellite: THREE.Group | null = null;
     let redLEDMaterial: THREE.MeshStandardMaterial | undefined;
     let greenLEDMaterial: THREE.MeshStandardMaterial | undefined;
+    let antennaMaterial: THREE.MeshStandardMaterial | undefined;
+    let dishMaterial: THREE.MeshStandardMaterial | undefined;
+    let panelLeftMaterial: THREE.MeshStandardMaterial | undefined;
+    let panelRightMaterial: THREE.MeshStandardMaterial | undefined;
+    let sateliteBodyMaterial: THREE.MeshStandardMaterial | undefined;
     let redLEDMesh: THREE.Mesh | undefined;
     let greenLEDMesh: THREE.Mesh | undefined;
+    let antennaMesh: THREE.Mesh | undefined;
+    let dishMesh: THREE.Mesh | undefined;
+    let panelLeftMesh: THREE.Mesh | undefined;
+    let panelRightMesh: THREE.Mesh | undefined;
+    let sateliteBodyMesh: THREE.Mesh | undefined;
+    // Glow sprites
     let redGlowSprite: THREE.Sprite | null = null;
     let greenGlowSprite: THREE.Sprite | null = null;
     let redBaseRoughness = 0.5;
@@ -62,20 +73,76 @@ export default function SpaceCanvas() {
         try {
           const redLed = (satellite.children[0].children.find((child) => child.name === 'LED-Left') as THREE.Mesh) || undefined;
           const greenLed = (satellite.children[0].children.find((child) => child.name === 'LED-Right') as THREE.Mesh) || undefined;
+          const antenna = (satellite.children[0].children.find((child) => child.name === 'Antenna') as THREE.Mesh) || undefined;
+          const dish = (satellite.children[0].children.find((child) => child.name === 'Dish') as THREE.Mesh) || undefined;
+          const panelLeft = (satellite.children[0].children.find((child) => child.name === 'Panel-Left') as THREE.Mesh) || undefined;
+          const panelRight = (satellite.children[0].children.find((child) => child.name === 'Panel-Right') as THREE.Mesh) || undefined;
+          const sateliteBody = (satellite.children[0].children.find((child) => child.name === 'Satelite-Body') as THREE.Mesh) || undefined
+          
+          
           redLEDMesh = redLed;
           greenLEDMesh = greenLed;
-          redLEDMaterial = redLed?.material as THREE.MeshStandardMaterial;
-          greenLEDMaterial = greenLed?.material as THREE.MeshStandardMaterial;
+          antennaMesh = antenna;
+          dishMesh = dish;
+          panelLeftMesh = panelLeft;
+          panelRightMesh = panelRight;
+          sateliteBodyMesh = sateliteBody;
 
-          if (redLEDMesh && redLEDMaterial) {
-            redLEDMesh.material = redLEDMaterial.clone();
-            redLEDMaterial = redLEDMesh.material as THREE.MeshStandardMaterial;
+          // Create new stylized PBR materials to overwrite the imported ones
+          const bodyMat = new THREE.MeshPhysicalMaterial({
+            color: 0xe6eefb,
+            metalness: 0.35,
+            roughness: 0.22,
+            clearcoat: 0.6,
+            clearcoatRoughness: 0.08,
+            envMapIntensity: 1.0
+          });
+
+          const panelMat = new THREE.MeshStandardMaterial({
+            color: 0x0b3a5c,
+            metalness: 0.6,
+            roughness: 0.18,
+            envMapIntensity: 1.2
+          });
+
+          const antennaMat = new THREE.MeshStandardMaterial({ color: 0xbfc7d1, metalness: 0.9, roughness: 0.15 });
+          const dishMat = new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: 0.85, roughness: 0.12 });
+
+          // LED materials use emissive to glow; start with emissiveIntensity 0 and drive it in animation
+          const redMat = new THREE.MeshStandardMaterial({ color: 0xff2b2b, emissive: 0xff2b2b, emissiveIntensity: 0, metalness: 0.0, roughness: 0.18 });
+          const greenMat = new THREE.MeshStandardMaterial({ color: 0x2bff7a, emissive: 0x2bff7a, emissiveIntensity: 0, metalness: 0.0, roughness: 0.18 });
+
+          // Apply new materials (overwrite originals)
+          if (sateliteBodyMesh) {
+            sateliteBodyMesh.material = bodyMat;
+            sateliteBodyMaterial = bodyMat;
           }
-          if (greenLEDMesh && greenLEDMaterial) {
-            greenLEDMesh.material = greenLEDMaterial.clone();
-            greenLEDMaterial = greenLEDMesh.material as THREE.MeshStandardMaterial;
+          if (panelLeftMesh) {
+            panelLeftMesh.material = panelMat;
+            panelLeftMaterial = panelMat;
+          }
+          if (panelRightMesh) {
+            panelRightMesh.material = panelMat;
+            panelRightMaterial = panelMat;
+          }
+          if (antennaMesh) {
+            antennaMesh.material = antennaMat;
+            antennaMaterial = antennaMat;
+          }
+          if (dishMesh) {
+            dishMesh.material = dishMat;
+            dishMaterial = dishMat;
+          }
+          if (redLEDMesh) {
+            redLEDMesh.material = redMat;
+            redLEDMaterial = redMat;
+          }
+          if (greenLEDMesh) {
+            greenLEDMesh.material = greenMat;
+            greenLEDMaterial = greenMat;
           }
 
+          // Record base roughness/metalness for blink logic
           if (redLEDMaterial) {
             redBaseRoughness = typeof redLEDMaterial.roughness === 'number' ? redLEDMaterial.roughness : 0.5;
             redBaseMetalness = typeof redLEDMaterial.metalness === 'number' ? redLEDMaterial.metalness : 0;
@@ -85,16 +152,36 @@ export default function SpaceCanvas() {
             greenBaseMetalness = typeof greenLEDMaterial.metalness === 'number' ? greenLEDMaterial.metalness : 0;
           }
 
-          if (redLEDMaterial) {
-            redLEDMaterial.emissive = new THREE.Color(0xff2b2b);
-            (redLEDMaterial as any).emissiveIntensity = 0;
-            redLEDMaterial.needsUpdate = true;
-          }
-          if (greenLEDMaterial) {
-            greenLEDMaterial.emissive = new THREE.Color(0x2bff7a);
-            (greenLEDMaterial as any).emissiveIntensity = 0;
-            greenLEDMaterial.needsUpdate = true;
-          }
+          // Add cinematic lighting to sell the floating satellite vibe
+          // soft ambient/hemisphere for subtle color grading
+          const hemi = new THREE.HemisphereLight(0x444c6a, 0x11121a, 0.6);
+          scene.add(hemi);
+
+          // a rim directional light to create highlights as the satellite rotates
+          const rim = new THREE.DirectionalLight(0xffffff, 1.2);
+          rim.position.set(800, 400, 600);
+          rim.castShadow = false;
+          scene.add(rim);
+
+          // an "earth glow" point light coming from bottom-left (matches your background composition)
+          const earthGlow = new THREE.PointLight(0x66aaff, 1.6, 3000, 2);
+          earthGlow.position.set(-1200, -600, 200);
+          scene.add(earthGlow);
+
+          // a soft fill light that follows the satellite a bit to keep details readable
+          const softFill = new THREE.PointLight(0xfff6e6, 0.6, 1200);
+          softFill.position.set(satellite.position.x + 200, satellite.position.y + 100, satellite.position.z + 50);
+          scene.add(softFill);
+
+          // nudge all replaced materials to use env intensity and mark needsUpdate so they catch lighting
+          const replaced = [sateliteBodyMesh, panelLeftMesh, panelRightMesh, antennaMesh, dishMesh, redLEDMesh, greenLEDMesh];
+          replaced.forEach((m) => {
+            if (m && (m.material as THREE.MeshStandardMaterial)) {
+              const mm = m.material as THREE.MeshStandardMaterial;
+              mm.envMapIntensity = mm.envMapIntensity || 1.0;
+              mm.needsUpdate = true;
+            }
+          });
         } catch (e) {
           // ignore
         }
